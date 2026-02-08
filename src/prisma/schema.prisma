@@ -1,0 +1,302 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums 
+enum RoleScope {
+  SYSTEM
+  COURSE
+}
+
+enum CourseVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum UserCourseStatus {
+  ENROLLED
+  COMPLETED
+  DROPPED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+}
+
+enum FileOwnerType {
+  USER
+  COURSE
+  LESSON
+  ASSIGNMENT
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  COURSE
+}
+
+// Models 
+
+model Users {
+  id         String        @id @default(uuid())
+  fullName   String
+  password   String
+  email      String        @unique
+  isActive   Boolean       @default(true)
+
+  profile        UserProfile
+  passwordResets PasswordReset[]
+  userRoles      UserRole[]
+  courses        UserCourses[]
+  courseRoles    CourseRole[]
+  submissions    Submission[]
+  reviews        Review[]    @relation("reviewer")
+  files          File[]      @relation("ownerFiles", fields: [id], references: [ownerId])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserProfile {
+  id         String   @id @default(uuid())
+  user        Users   @relation(fields: [userId], references: [id])
+  userId      String  @unique
+  grade       String?
+  qualification String?
+  avatarURL   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PasswordReset {
+  id         String   @id @default(uuid())
+  user       Users    @relation(fields: [userId], references: [id])
+  userId     String
+  tokenHash  String
+  expiredAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model Roles {
+  id          String   @id @default(uuid())
+  name        String
+  scope       RoleScope
+  description String?
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+  courseRoles     CourseRole[] 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Permissions {
+  id             String           @id @default(uuid())
+  permissionCode String           @unique
+  description    String?
+
+  rolePermissions RolePermission[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  role         Roles      @relation(fields: [roleId], references: [id])
+  roleId       String
+  permission   Permissions @relation(fields: [permissionId], references: [id])
+  permissionId String
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  user   Users  @relation(fields: [userId], references: [id])
+  userId String
+  role   Roles  @relation(fields: [roleId], references: [id])
+  roleId String
+
+  @@unique([userId, roleId])
+}
+
+model CourseRole {
+  id        String @id @default(uuid())
+  user      Users  @relation(fields: [userId], references: [id])
+  userId    String
+  course    Courses @relation(fields: [courseId], references: [id])
+  courseId  String
+  role      Roles   @relation(fields: [roleId], references: [id])
+  roleId    String
+
+  @@unique([userId, courseId, roleId])
+}
+
+model Courses {
+  id          String      @id @default(uuid())
+  code        String?
+  title       String
+  description String?
+  visibility  CourseVisibility @default(PUBLIC)
+  createdBy   String?
+  createdAt   DateTime    @default(now())
+
+  models      Model[]     @relation("courseModels")
+  lessons     Lesson[]
+  users       UserCourses[]
+  courseRoles CourseRole[]
+  files       File[]      @relation("courseFiles")
+}
+
+model Model {
+  id          String   @id @default(uuid())
+  course      Courses  @relation(fields: [courseId], references: [id])
+  courseId    String
+  title       String
+  description String?
+  visibility  CourseVisibility @default(PUBLIC)
+
+  lessons     Lesson[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Lesson {
+  id        String    @id @default(uuid())
+  model     Model     @relation(fields: [modelId], references: [id])
+  modelId   String
+  title     String
+  content   String?
+
+  lessonResources LessonResource[]
+  assignments     Assignment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LessonResource {
+  id       String @id @default(uuid())
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+  lessonId String
+  title    String
+  content  String?
+  fileId   String?
+  url      String?
+  type     String
+}
+
+model UserCourses {
+  id          String           @id @default(uuid())
+  user        Users            @relation(fields: [userId], references: [id])
+  userId      String
+  course      Courses          @relation(fields: [courseId], references: [id])
+  courseId    String
+  status      UserCourseStatus @default(ENROLLED)
+  enrolledAt  DateTime?
+  completedAt DateTime?
+  finalScore  Int?
+
+  @@unique([userId, courseId])
+}
+
+model Assignment {
+  id           String    @id @default(uuid())
+  lesson       Lesson    @relation(fields: [lessonId], references: [id])
+  lessonId     String
+  fileId       String?
+  title        String
+  description  String?
+  maxScore     Int?
+  allowLate    Boolean   @default(true)
+  latePenalty  String?
+  createdBy    String?
+  openAt       DateTime?
+  closeAt      DateTime?
+
+  rubrics      Rubric[]
+  submissions  Submission[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Rubric {
+  id           String   @id @default(uuid())
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+  assignmentId String
+  title        String
+  maxPointEach Int?
+  weight       Int?
+  createdAt    DateTime @default(now())
+}
+
+model Submission {
+  id            String           @id @default(uuid())
+  assignment    Assignment       @relation(fields: [assignmentId], references: [id])
+  assignmentId  String
+  user          Users            @relation(fields: [userId], references: [id])
+  userId        String
+  fileId        String?
+  attemptNumber Int?
+  title         String?
+  content       String?
+  status        SubmissionStatus @default(SUBMITTED)
+  submittedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  reviews       Review[]
+}
+
+model Review {
+  id           String   @id @default(uuid())
+  rubric       Rubric   @relation(fields: [rubricId], references: [id])
+  rubricId     String
+  submission   Submission @relation(fields: [submissionId], references: [id])
+  submissionId String
+  reviewer     Users      @relation("reviewer", fields: [reviewerId], references: [id])
+  reviewerId   String
+  totalPoint   Int?
+  comment      String?
+  createdAt    DateTime @default(now())
+}
+
+model File {
+  id        String @id @default(uuid())
+  ownerId   String // reference id (user/course/lesson/assignment)
+  ownerType FileOwnerType
+  path      String
+  fileName  String
+  fileType  String
+  fileByte  Int?
+  uploadedAt DateTime @default(now())
+
+
+}
+
+model LOG {
+  id         String   @id @default(uuid())
+  actorId    String
+  actorType  ActorType
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+}
