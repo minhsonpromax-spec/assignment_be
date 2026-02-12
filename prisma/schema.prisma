@@ -199,7 +199,7 @@ model LessonResource {
   content  String?
   type      String   // pdf | video | link | file
   file      File?     @relation("lessonResourceFile", fields: [fileId], references: [id])
-  fileId   String?
+  fileId   String?    @unique 
   url      String?
 }
 
@@ -295,7 +295,7 @@ model Review {
   submissionId String
   reviewer     Users      @relation("reviewer", fields: [reviewerId], references: [id])
   reviewerId   String
-  Point   Int?
+  point        Int?
   comment      String?
   createdAt    DateTime @default(now())
 
@@ -306,12 +306,12 @@ model File {
   id            String      @id @default(uuid())
   
   user          Users?      @relation("userFiles", fields: [userId], references: [id], map: "fk_file_user")
-  userId        String
+  userId        String?
 
   course        Courses?    @relation("courseFiles", fields: [courseId], references: [id], map: "fk_file_course")
   courseId      String?
 
-  lesson        LessonResource?     @relation("lessonResourceFile", fields: [lessonResourceId], references: [id], map: "fk_file_lessonResource")
+  lessonResource        LessonResource?     @relation("lessonResourceFile")
   lessonResourceId      String?
 
   assignment    Assignment? @relation("assignmentFiles", fields: [assignmentId], references: [id], map: "fk_file_assignment")
