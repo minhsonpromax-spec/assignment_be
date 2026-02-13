@@ -1,87 +1,62 @@
-export const loadUserPermissions = async (req, res, next) => {
+export const loadAuthProfile = async (req, res, next) => {
   try {
-    const { userId } = req.user
+    const { userId } = req.user // From your JWT middleware
 
     const user = await prisma.users.findUnique({
       where: { id: userId },
       include: {
         userRoles: {
-          include: {
-            role: {
-              include: {
-                rolePermissions: {
-                  include: {
-                    permission: true
-                  }
-                }
-              }
-            }
-          }
+          include: { role: { include: { rolePermissions: { include: { permission: true } } } } }
+        },
+        courseRoles: { // Load course IDs and permissions upfront to save DB calls later
+          include: { role: { include: { rolePermissions: { include: { permission: true } } } } }
         }
       }
     })
 
-    if (!user || !user.isActive)
-      throw new AppError("Unauthorized", 401)
+    if (!user || !user.isActive) throw new AppError("Unauthorized", 401)
 
-    const permissions = user.userRoles.flatMap(ur =>
-      ur.role.rolePermissions.map(rp => rp.permission.permissionCode)
-    )
+    // Flatten Global Permissions
+    const systemPermissions = user.userRoles
+      .filter(ur => ur.role.scope === 'SYSTEM')
+      .flatMap(ur => ur.role.rolePermissions.map(rp => rp.permission.permissionCode))
+
+    // Map Course Permissions: { courseId: [permissionCodes] }
+    const courseAccessMap = {}
+    user.courseRoles.forEach(cr => {
+      const perms = cr.role.rolePermissions.map(rp => rp.permission.permissionCode)
+      courseAccessMap[cr.courseId] = perms
+    })
 
     req.auth = {
       userId: user.id,
-      permissions
+      systemPermissions,
+      courseAccessMap,
+      isSystemAdmin: systemPermissions.includes('ADMIN_POWER') // Optional helper
     }
 
     next()
-
   } catch (err) {
-    next(new AppError("Invalid or expired token", 401))
+    next(err)
   }
 }
 
-
-export const requirePermission = (permissionCode) => {
+// Use this for any route (Global or Course-specific)
+export const can = (permissionCode) => {
   return (req, res, next) => {
-    if (!req.auth.permissions.includes(permissionCode)) {
-      return next(new AppError("Forbidden", 403))
+    const { systemPermissions, courseAccessMap } = req.auth
+    const { courseId } = req.params // or req.query depending on route
+
+    // 1. Check Global/System Scope first
+    if (systemPermissions.includes(permissionCode)) {
+      return next()
     }
-    next()
-  }
-}
 
+    // 2. If a course context exists, check Course Scope
+    if (courseId && courseAccessMap[courseId]?.includes(permissionCode)) {
+      return next()
+    }
 
-export const requireCoursePermission = (permissionCode) => {
-  return async (req, res, next) => {
-    const { userId } = req.auth
-    const { courseId } = req.params
-
-    const courseRole = await prisma.courseRole.findFirst({
-      where: {
-        userId,
-        courseId
-      },
-      include: {
-        role: {
-          include: {
-            rolePermissions: {
-              include: { permission: true }
-            }
-          }
-        }
-      }
-    })
-
-    if (!courseRole)
-      return next(new AppError("Forbidden", 403))
-
-    const permissions = courseRole.role.rolePermissions.map(
-      rp => rp.permission.permissionCode
-    )
-
-    if (!permissions.includes(permissionCode))
-      return next(new AppError("Forbidden", 403))
-
-    next()
+    return next(new AppError("Forbidden: Insufficient permissions", 403))
   }
 }

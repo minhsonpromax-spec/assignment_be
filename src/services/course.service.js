@@ -17,6 +17,20 @@ export const getCourseDetail = async (courseId) => {
 }
 
 
+export const getAllCoursesRegistered = async (user) => {
+    const userCourses = await prisma.userCourses.findMany({
+        where: {
+            userId: user.id
+        },
+        include: {
+            course: true
+        }
+    })
+    return parseAllCoursesRegistered(userCourses)
+}
+    
+
+
 const parseCourseDetailResponse = (course) => {
     return {
         id: course.id,
@@ -39,4 +53,18 @@ const parseModelResponse = (model) => {
         description: model.description,
         createdAt: model.createdAt
     }
+}
+
+const parseAllCoursesRegistered = (userCourses) => {
+    return userCourses.map((userCourse) => {
+        return {
+            id: userCourse.id,
+            userId: userCourse.userId,
+            courseId: userCourse.courseId,
+            courseTitle: userCourse.course.title,
+            status: userCourse.status,
+            visibility: userCourse.visibility,
+            enrolledAt: userCourse.createdAt,
+        }
+    })
 }

@@ -20,11 +20,6 @@ enum RoleScope {
   COURSE
 }
 
-enum CourseVisibility {
-  PUBLIC
-  PRIVATE
-}
-
 enum UserCourseStatus {
   PENDING
   ENROLLED
@@ -55,6 +50,7 @@ enum ActorType {
 model Users {
   id         String        @id @default(uuid())
   fullName   String
+  searchName String
   password   String
   email      String        @unique
   isActive   Boolean       @default(true)
@@ -116,6 +112,7 @@ model Permissions {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+// permission: CAN_VIEW_REQUESTS, CAN_APPROVE_ENROLLMENT, CAN_GET_STUDENT_LIST
 
 model RolePermission {
   id           String     @id @default(uuid())
@@ -154,7 +151,6 @@ model Courses {
   code        String?
   title       String
   description String?
-  visibility  CourseVisibility @default(PUBLIC) 
   createdBy   String
   createdAt   DateTime    @default(now())
 
@@ -170,7 +166,6 @@ model Model {
   courseId    String
   title       String
   description String?
-  visibility  CourseVisibility @default(PUBLIC)
 
   lessons     Lesson[]
   createdAt   DateTime @default(now())
@@ -213,7 +208,7 @@ model UserCourses {
   enrolledAt  DateTime?
   completedAt DateTime?
   finalScore  Int?
-
+  registeredAt DateTime        @default(now())
   @@unique([userId, courseId])
 }
 
