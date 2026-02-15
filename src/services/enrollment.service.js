@@ -1,13 +1,13 @@
 import { NOTIFICATION_TITLE } from "../constants/notification.js"
 import prisma from "../database/index.js"
 import { AppError } from "../exceptions/app-error.js"
+import { paginate } from "../utils/pagination.js"
 import {resolveCourseAccess} from "../utils/permission.js"
 
-export const registerCourse = async (user, body) => {
-    const { id: userId, name } = user
-    const { courseId } = body
+export const registerCourse = async (userId, courseId) => {
+  const name = await prisma.users.findUnique({where: { id: userId}})
 
-    if (!courseId) 
+    if (!courseId || !userId) 
         throw new AppError("courseId is required", 400)
         
     const course = await prisma.courses.findUnique({
@@ -63,42 +63,75 @@ export const teachersByCourses = async (courseId) => {
 
 
     
-export const getEnrollmentRequests = async (userId) => {
-
+export const getEnrollmentRequests = async (userId, page = 1, limit = 10) => {
+  if(!userId)
+    throw new AppError("UserId must be provided")
   const access = await resolveCourseAccess(userId, "CAN_VIEW_REQUESTS")
 
   if (access.type === "SYSTEM") {
-    return prisma.userCourses.findMany({
+    const queryArgs = {
       where: { status: "PENDING" },
       include: { user: true, course: true },
       orderBy: { registeredAt: "desc" }
-    })
+    }
+    const result = await paginate(prisma.userCourses, queryArgs, page, limit)
+    return {
+      data: result.data.map(parsePendingRequest),
+      meta: result.meta
+    }
   }
+  
 
   if (access.type === "COURSE") {
-    return prisma.userCourses.findMany({
+    const queryArgs = {
       where: {
         status: "PENDING",
         courseId: { in: access.courseIds }
       },
       include: { user: true, course: true },
       orderBy: { registeredAt: "desc" }
-    })
+    }
+    const result = await paginate(prisma.userCourses, queryArgs, page, limit)
+    return {
+      data: result.data.map(parsePendingRequest),
+      meta: result.meta
+    }
   }
 
   // student chỉ có thấy request của chính họ
-  return prisma.userCourses.findMany({
+  const queryArgs = {
     where: {
       userId: userId
     },
     include: { course: true },
     orderBy: { registeredAt: "desc" }
-  })
+  }
+  const result = await paginate(prisma.userCourses, queryArgs, page, limit)
+  return {
+    data: result.data.map(parsePendingRequest),
+    meta: result.meta
+  }
 }
+
+const parsePendingRequest = (item) => ({
+  id: item.id,
+  userId: item.userId,
+  fullName: item.user.fullName,
+  searchName: item.user.searchName,
+  userEmail: item.user.email,
+  courseId: item.courseId,
+  courseTitle: item.course.title,
+  registeredAt: item.registeredAt,
+  status: item.status
+})
+
 
 
 export const approveEnrollmentRequest = async (currentUserId, enrollmentId) => {
-    const enrollment = await prisma.userCourses.findUnique({
+  if(!currentUserId || !enrollmentId)
+    throw new AppError("UserId or enrollmentId must be provided")
+
+  const enrollment = await prisma.userCourses.findUnique({
     where: { id: enrollmentId }
   })
 
@@ -129,30 +162,36 @@ export const approveEnrollmentRequest = async (currentUserId, enrollmentId) => {
 }
 
 
-export const getStudentList = async (userId, courseId) => {
+export const getStudentList = async (userId, courseId, page, limit) => {
+  if(!userId || !courseId)
+    throw new AppError("UserId or courseId must be provided")
+  
   const access = await resolveCourseAccess(userId, 'CAN_GET_STUDENT_LIST', courseId)
   
   if (access.type === "NONE") {
     throw new AppError("Forbidden", 403)
   }
 
-    const studentList = await prisma.userCourses.findMany({
-      where: {
-        status: {
-          in: ['COMPLETED', 'ENROLLED']
-        }
-      },
-      select: {
-        user: {
-          id: true,
-          fullName: true,
-          email: true,
-          isActive: true
-        }
-      },
-      orderBy: {
-          searchName: "asc"
+  const queryArgs = {
+    where: {
+      status: {
+        in: [UserCourseStatus.ENROLLED, UserCourseStatus.COMPLETED]
       }
-    })
-  return studentList
+    },
+    select: {
+      user: {
+        id: true,
+        fullName: true,
+        email: true,
+        isActive: true
+      }
+    },
+    orderBy: {
+      user: {
+        searchName: "asc"
+      }
+    }
+  }
+  const result = await paginate(prisma.userCourses, queryArgs, page, limit)
+  return result
 }

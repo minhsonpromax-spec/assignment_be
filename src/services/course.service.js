@@ -1,6 +1,9 @@
 import { AppError } from "../exceptions/app-error.js"
 import prisma from "../database/index.js"
+import { paginate } from "../utils/pagination.js"
 
+// mỗi course có không quá nhiều model đâu, do còn chia nhỏ thành lesson nữa mà,
+// nên không cần pagination ở đây cho phức tạp, vì ở đây cần findUnique chứ không phải findMany
 export const getCourseDetail = async (courseId) => {
     if(!courseId) throw new AppError("courseId must be provided", 400)
     const course = await prisma.courses.findUnique({
@@ -17,20 +20,22 @@ export const getCourseDetail = async (courseId) => {
 }
 
 
-export const getAllCoursesRegistered = async (user) => {
-    const userCourses = await prisma.userCourses.findMany({
-        where: {
-            userId: user.id
-        },
+export const getAllCoursesRegistered = async (userId, page = 1, limit = 10) => {
+    const queryArgs = {
+        where: {userId},
         include: {
             course: true
         }
-    })
-    return parseAllCoursesRegistered(userCourses)
+    }
+
+    const result = await paginate(prisma.userCourses, queryArgs, page, limit)
+
+    return {
+        data: parseAllCoursesRegistered(result.data),
+        meta: result.meta   
+    }
 }
     
-
-
 const parseCourseDetailResponse = (course) => {
     return {
         id: course.id,

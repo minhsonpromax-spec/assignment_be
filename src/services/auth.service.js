@@ -3,11 +3,12 @@ import crypto from "crypto"
 import { AppError } from "../exceptions/app-error.js"
 import prisma from "../database/index.js"
 import jwt from "jsonwebtoken"
+import { transporter } from "../utils/mailer.js"
 
 export const signUp = async (fullName, password, email) => {
     if(!fullName || !password || !email)
         throw new AppError("Please enter all the information", 400)
-    const existed = await prisma.users.findUnique( where: { email })
+    const existed = await prisma.users.findUnique( {where: { email }})
     if(existed)
         throw new AppError(`Email ${email} already existed`, 409)
     
@@ -20,7 +21,7 @@ export const signUp = async (fullName, password, email) => {
         }
     })
     if (!roleId) 
-        throw new AppError("roleId not found", 500)
+        throw new AppError("roleId not found", 400)
 
     const user = await prisma.$transaction(async (tx) => {
     const newUser = await tx.users.create({
@@ -70,7 +71,9 @@ export const logIn = async (email, password) => {
 
 
 export const requestPasswordReset = async (email) => {
-  const user = await prisma.users.findUnique( where: { email })
+  if(!email)
+    throw new AppError ("Email must be provided", 400)
+  const user = await prisma.users.findUnique( {where: { email }})
 
   if (!user) 
     throw new AppError("User not found", 404)
@@ -102,6 +105,9 @@ export const requestPasswordReset = async (email) => {
 
 
 export const resetPassword = async (token, newPassword) => {
+  if(!token || newPassword)
+    throw new AppError ("Token or new password must be provided", 400)
+  
   const tokenHash = crypto
     .createHash("sha256")
     .update(token)

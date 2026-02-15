@@ -1,30 +1,40 @@
-// gọi khi teacher nhập điểm
-export const updateSubmissionScore = async (submissionId) => {
+import { AppError } from "../exceptions/app-error.js"
+import prisma from "../database/index.js"
+
+export const getSubmissionForAuth = async (submissionId) => {
   const submission = await prisma.submission.findUnique({
     where: { id: submissionId },
-    include: {
-      reviews: {
-        include: { rubric: true }
+    select: {
+      assignment: {
+        select: { lesson: { select: { courseId: true } } }
       }
     }
   })
+  if (!submission) throw new AppError("Submission not found", 404)
+  return submission
+}
 
-  let total = 0
-
-  submission.reviews.forEach(review => {
-    const { point } = review
-    const { maxPointEach, weight } = review.rubric
-
-    if (!maxPointEach || !weight) return
-
-    total += (point / maxPointEach) * weight
+// gọi khi teacher nhập điểm
+export const calculateAndSaveScore = async (tx, submissionId) => {
+  const submission = await tx.submission.findUnique({
+    where: { id: submissionId },
+    include: { reviews: { include: { rubric: true } } }
   })
 
-  await prisma.submission.update({
+  let totalScore = 0
+  submission.reviews.forEach(review => {
+    const point = review.point || 0
+    const max = review.rubric.maxPointEach || 10
+    const weight = review.rubric.weight || 0
+    totalScore += (point / max) * weight
+  })
+
+  return await tx.submission.update({
     where: { id: submissionId },
     data: {
-      finalScore: total,
+      finalScore: parseFloat(totalScore.toFixed(2)),
       status: "GRADED"
     }
   })
 }
+

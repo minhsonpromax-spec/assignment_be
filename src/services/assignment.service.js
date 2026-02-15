@@ -3,9 +3,9 @@ import prisma from "../database/index.js"
 import { resolveCourseAccess } from "../utils/permission.js"
 import { paginate } from "../utils/pagination.js"
 
-export const getAllAssignmentDid = async (userId, page, limit) => {
-    if(!userId)
-        throw new AppError ("userId must be provided", 400)
+export const getAllAssignmentDid = async (userId, page = 1, limit = 10) => {
+  if(!userId)
+    throw new AppError ("UserId must be provided", 400)
 
     const queryArgs = {
         where: {userId},
@@ -15,21 +15,25 @@ export const getAllAssignmentDid = async (userId, page, limit) => {
 
     const result = await paginate(prisma.submission, queryArgs, page, limit)
 
-    return parseAssignmentDid(result)
-}
-
-const parseAssignmentDid = (result) => {
     return {
-        total: result.length,
-        data: result.map(item => ({
-            id: item.assignment.id,
-            title: item.assignment.title,
-            submittedAt: item.submittedAt
-        }))
+      data: parseAssignmentDid(result.data),
+      meta: result.meta
     }
 }
 
+const parseAssignmentDid = (submissions) => {
+  return submissions.map(item => ({
+    id: item.assignment.id,
+    title: item.assignment.title,
+    submittedAt: item.submittedAt
+  }))
+}
+
+
 export const getOfficialAssignmentScore = async (assignmentId, userId) => {
+  if(!userId || !assignmentId)
+    throw new AppError ("UserId or assignmentId must be provided", 400)
+
   const submission = await prisma.submission.findFirst({
     where: {
       assignmentId,
@@ -50,12 +54,16 @@ export const getOfficialAssignmentScore = async (assignmentId, userId) => {
   return submission
 }
 
+// phần file này chờ
 export const createAssignment = async (userId, ) => {
 
 }
 
-export const getAllStudentScore = async (userId, assignmentId, page, limit) => {
-  const courseId = await prisma.assignment.findUnique({
+export const getAllStudentScore = async (userId, assignmentId, page = 1, limit = 10) => {
+  if(!userId || !assignmentId)
+    throw new AppError ("UserId or assignmentId must be provided", 400)
+
+  const assignment = await prisma.assignment.findUnique({
     where: {id: assignmentId},
     select: {
       lesson: {
@@ -69,6 +77,8 @@ export const getAllStudentScore = async (userId, assignmentId, page, limit) => {
       }
     }
   })
+
+  const courseId = assignment?.lesson?.model?.courseId
 
   if(!courseId)
     throw new AppError("Course id not found", 404)

@@ -112,7 +112,7 @@ model Permissions {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-// permission: CAN_VIEW_REQUESTS, CAN_APPROVE_ENROLLMENT, CAN_GET_STUDENT_LIST
+// permission: CAN_VIEW_REQUESTS, CAN_APPROVE_ENROLLMENT, CAN_GET_STUDENT_LIST, CAN_MARK_SUBMISSION
 
 model RolePermission {
   id           String     @id @default(uuid())
@@ -237,7 +237,7 @@ model Assignment {
   lesson       Lesson    @relation(fields: [lessonId], references: [id])
   lessonId     String
   fileId       String?
-  title        String
+  title        Stringf
   description  String?
   maxScore     Int?
   allowLate    Boolean   @default(true)
