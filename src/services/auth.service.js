@@ -5,26 +5,28 @@ import prisma from "../database/index.js"
 import jwt from "jsonwebtoken"
 import { transporter } from "../utils/mailer.js"
 
-export const signUp = async (fullName, password, email) => {
-    if(!fullName || !password || !email)
+export const signUp = async (userInput) => {
+    if(!userInput)
         throw new AppError("Please enter all the information", 400)
+    const email = userInput.email?.toLowerCase().trim()  
+    const {fullName, password} = userInput
     const existed = await prisma.users.findUnique( {where: { email }})
     if(existed)
         throw new AppError(`Email ${email} already existed`, 409)
     
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    const roleId = await prisma.roles.findFirst({
+    const role = await prisma.roles.findFirst({
         where: {
             name: "USER",          
             scope: "SYSTEM"
         }
     })
-    if (!roleId) 
+    if (!role) 
         throw new AppError("roleId not found", 400)
 
-    const user = await prisma.$transaction(async (tx) => {
-    const newUser = await tx.users.create({
+    const newUser = await prisma.$transaction(async (tx) => {
+    const createdUser = await tx.users.create({
       data: {
         fullName,
         email,
@@ -34,22 +36,25 @@ export const signUp = async (fullName, password, email) => {
 
     await tx.userRole.create({
       data: {
-        userId: newUser.id,
-        roleId: roleId.id
+        userId: createdUser.id,
+        roleId: role.id
       }
     })
 
-    return newUser
+    return createdUser
   })
-
-  const {password: _, ...safeUser} = user
-  return safeUser
+  const accessToken = generateAccessToken({
+        userId: newUser.id,
+        email: newUser.email
+  })
+  const {password: _, ...safeUser} = newUser
+  return {safeUser, accessToken}
 }
 
-export const logIn = async (email, password) => {
-  if(!email || !password)
+export const logIn = async (userInput) => {
+  if(!userInput)
     throw new AppError("Please enter all the information", 400)
-
+  const {email, password} = userInput
   const user = await prisma.users.findUnique({email})
 
   if(!user)
@@ -73,6 +78,7 @@ export const logIn = async (email, password) => {
 export const requestPasswordReset = async (email) => {
   if(!email)
     throw new AppError ("Email must be provided", 400)
+  const email = email.toLowerCase().trim()  
   const user = await prisma.users.findUnique( {where: { email }})
 
   if (!user) 
@@ -83,7 +89,7 @@ export const requestPasswordReset = async (email) => {
     .createHash("sha256")
     .update(token)
     .digest("hex")
-
+  
   await prisma.passwordReset.create({
     data: {
       userId: user.id,

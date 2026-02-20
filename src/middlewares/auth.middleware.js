@@ -5,7 +5,7 @@ export const Authentication = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization
 
-    if (!authHeader)
+    if (!authHeader || !authHeader.startsWith("Bearer "))
       throw new AppError("Unauthorized", 401)
 
     const token = authHeader.split(" ")[1]

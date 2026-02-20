@@ -37,11 +37,11 @@ export const registerCourse = async (userId, courseId) => {
 
     const content = `New course registration: ${name} has registered for "${course.name}".`
 
-    sendNotification(
-        NOTIFICATION_TITLE.NEW_COURSE_REGISTRATION,
-        content,
-        teacherIds
-    ).catch(console.error)
+    // sendNotification(
+    //     NOTIFICATION_TITLE.NEW_COURSE_REGISTRATION,
+    //     content,
+    //     teacherIds
+    // ).catch(console.error)
 
     return userCourse
 }
@@ -139,6 +139,9 @@ export const approveEnrollmentRequest = async (currentUserId, enrollmentId) => {
     throw new AppError("Enrollment request not found", 404)
   }
 
+  if (enrollment.status !== "PENDING") {
+    throw new AppError("Only pending requests can be approved", 400)
+  }
   const targetCourseId = enrollment.courseId
 
   const access = await resolveCourseAccess(
@@ -155,6 +158,16 @@ export const approveEnrollmentRequest = async (currentUserId, enrollmentId) => {
     where: { id: enrollmentId },
     data: {
       status: "APPROVED"
+    },
+    select: {
+      id: true,
+      status: true,
+      course: {
+        select: {
+          title: true,
+          code: true
+        }
+      }
     }
   })
 
