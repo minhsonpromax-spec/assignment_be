@@ -3,13 +3,9 @@ import { AppError } from "../utils/AppError"
 import { resolveCourseAccess } from "../utils/permission"
 import * as SubmissionService from "./submission.service"
 
-export const updateReviewPoint = async (userId, submissionId, reviewPoints) => {
+export const updateReviewPoint = async (courseId, submissionId, reviewPoints, context) => {
+  const logger = context ? createLogger(context) : null
   const submissionAuth = await SubmissionService.getSubmissionForAuth(submissionId)
-  const courseId = submissionAuth.assignment?.lesson?.courseId
-
-  const access = await resolveCourseAccess(userId, 'CAN_MARK_SUBMISSION', courseId)
-  if (access.type !== "COURSE") 
-    throw new AppError("Forbidden", 403)
 
   return await prisma.$transaction(async (tx) => {
 
@@ -35,6 +31,14 @@ export const updateReviewPoint = async (userId, submissionId, reviewPoints) => {
     }
 
     const updatedSubmission = await SubmissionService.calculateAndSaveScore(tx, submissionId)
+
+    if (logger) {
+      await logger.info("Updated review points", {
+        submissionId,
+        reviewerId: userId
+      }).catch(() => {})
+    }
+
     return updatedSubmission
   })
 }

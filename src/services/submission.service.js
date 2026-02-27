@@ -4,11 +4,6 @@ import prisma from "../database/index.js"
 export const getSubmissionForAuth = async (submissionId) => {
   const submission = await prisma.submission.findUnique({
     where: { id: submissionId },
-    select: {
-      assignment: {
-        select: { lesson: { select: { courseId: true } } }
-      }
-    }
   })
   if (!submission) throw new AppError("Submission not found", 404)
   return submission

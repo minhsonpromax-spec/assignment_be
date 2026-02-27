@@ -2,9 +2,10 @@ import { NOTIFICATION_TITLE } from "../constants/notification.js"
 import prisma from "../database/index.js"
 import { AppError } from "../exceptions/app-error.js"
 import { paginate } from "../utils/pagination.js"
-import {resolveCourseAccess} from "../utils/permission.js"
+import createLogger from "../utils/createLogger.js"
 
-export const registerCourse = async (userId, courseId) => {
+export const registerCourse = async (userId, courseId, context) => {
+  const logger = context ? createLogger(context) : null
   const name = await prisma.users.findUnique({where: { id: userId}})
 
     if (!courseId || !userId) 
@@ -37,6 +38,14 @@ export const registerCourse = async (userId, courseId) => {
 
     const content = `New course registration: ${name} has registered for "${course.name}".`
 
+    if (logger) {
+      logger.info("COURSE_REGISTERED", {
+        targetType: "UserCourse",
+        targetId: userCourse.id,
+        metadata: { courseId, userId }
+      }).catch(() => {})
+    }
+
     // sendNotification(
     //     NOTIFICATION_TITLE.NEW_COURSE_REGISTRATION,
     //     content,
@@ -63,14 +72,9 @@ export const teachersByCourses = async (courseId) => {
 
 
     
-export const getEnrollmentRequests = async (userId, page = 1, limit = 10) => {
-  if(!userId)
-    throw new AppError("UserId must be provided")
-  const access = await resolveCourseAccess(userId, "CAN_VIEW_REQUESTS")
-
-  if (access.type === "SYSTEM") {
+export const getEnrollmentRequests = async (filter, page = 1, limit = 10) => {
     const queryArgs = {
-      where: { status: "PENDING" },
+      where: filter,
       include: { user: true, course: true },
       orderBy: { registeredAt: "desc" }
     }
@@ -79,57 +83,27 @@ export const getEnrollmentRequests = async (userId, page = 1, limit = 10) => {
       data: result.data.map(parsePendingRequest),
       meta: result.meta
     }
-  }
-  
-
-  if (access.type === "COURSE") {
-    const queryArgs = {
-      where: {
-        status: "PENDING",
-        courseId: { in: access.courseIds }
-      },
-      include: { user: true, course: true },
-      orderBy: { registeredAt: "desc" }
-    }
-    const result = await paginate(prisma.userCourses, queryArgs, page, limit)
-    return {
-      data: result.data.map(parsePendingRequest),
-      meta: result.meta
-    }
-  }
-
-  // student chỉ có thấy request của chính họ
-  const queryArgs = {
-    where: {
-      userId: userId
-    },
-    include: { course: true },
-    orderBy: { registeredAt: "desc" }
-  }
-  const result = await paginate(prisma.userCourses, queryArgs, page, limit)
-  return {
-    data: result.data.map(parsePendingRequest),
-    meta: result.meta
-  }
 }
 
 const parsePendingRequest = (item) => ({
   id: item.id,
   userId: item.userId,
-  fullName: item.user.fullName,
-  searchName: item.user.searchName,
-  userEmail: item.user.email,
+  fullName: item.user?.fullName ?? "N/A",
+  searchName: item.user?.searchName ?? "",
+  userEmail: item.user?.email ?? "N/A",
   courseId: item.courseId,
-  courseTitle: item.course.title,
+  courseTitle: item.course?.title ?? "Unknown Course",
   registeredAt: item.registeredAt,
   status: item.status
 })
 
+// ========================================== //
 
+export const approveEnrollmentRequest = async (enrollmentId, context) => {
+  const logger = context ? createLogger(context) : null
 
-export const approveEnrollmentRequest = async (currentUserId, enrollmentId) => {
-  if(!currentUserId || !enrollmentId)
-    throw new AppError("UserId or enrollmentId must be provided")
+  if( !enrollmentId)
+    throw new AppError("EnrollmentId must be provided")
 
   const enrollment = await prisma.userCourses.findUnique({
     where: { id: enrollmentId }
@@ -141,17 +115,6 @@ export const approveEnrollmentRequest = async (currentUserId, enrollmentId) => {
 
   if (enrollment.status !== "PENDING") {
     throw new AppError("Only pending requests can be approved", 400)
-  }
-  const targetCourseId = enrollment.courseId
-
-  const access = await resolveCourseAccess(
-    currentUserId,
-    "CAN_APPROVE_ENROLLMENT",
-    targetCourseId
-  )
-
-  if (access.type === "NONE") {
-    throw new AppError("Forbidden", 403)
   }
 
   const updated = await prisma.userCourses.update({
@@ -171,19 +134,21 @@ export const approveEnrollmentRequest = async (currentUserId, enrollmentId) => {
     }
   })
 
+  if(logger) {
+    logger.info("ENROLLMENT_APPROVED", {
+      targetType: "UserCourse",
+      targetId: enrollmentId,
+      metadata: { courseId: enrollment.courseId, userId: enrollment.userId }
+    }).catch(() => {})
+  }
+
   return updated
 }
 
 
-export const getStudentList = async (userId, courseId, page, limit) => {
-  if(!userId || !courseId)
-    throw new AppError("UserId or courseId must be provided")
-  
-  const access = await resolveCourseAccess(userId, 'CAN_GET_STUDENT_LIST', courseId)
-  
-  if (access.type === "NONE") {
-    throw new AppError("Forbidden", 403)
-  }
+export const getStudentList = async (courseId, page, limit) => {
+  if(!courseId)
+    throw new AppError("CourseId must be provided")
 
   const queryArgs = {
     where: {

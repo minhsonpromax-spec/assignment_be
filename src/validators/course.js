@@ -16,3 +16,11 @@ export const getAllCoursesRegisteredSchema = {
     params: Joi.object({}),
     body: Joi.object({}),
 }
+
+export const validateCourseIdParams = Joi.object({
+    params: Joi.object({
+        courseId: Joi.string().uuid().required(),
+    }),
+    query: Joi.object({}),
+    body: Joi.object({}),
+})

@@ -6,7 +6,6 @@ export const getAllAssignmentDidController = asyncHandler(async (req, res) => {
   const userId = req.user.id
   const page = Number(req.query.page) || 1
   const limit = Number(req.query.limit) || 10
-
   const result = await getAllAssignmentDid(userId, page, limit)
 
   return successResponse(res, {
@@ -18,10 +17,10 @@ export const getAllAssignmentDidController = asyncHandler(async (req, res) => {
 })
 
 export const getOfficialAssignmentScoreController = asyncHandler(async(req, res) => {
-  const {assignmentId} = req.params
+  const {assignmentId, courseId} = req.params
   const userId = req.user.id
 
-  const result = await getOfficialAssignmentScore(assignmentId, userId)
+  const result = await getOfficialAssignmentScore(assignmentId, courseId, userId)
   return successResponse(res, {
     statusCode: 200,
     message: "Get official assignment score successfully",
@@ -30,12 +29,12 @@ export const getOfficialAssignmentScoreController = asyncHandler(async(req, res)
 })
 
 export const getAllStudentScoreController = asyncHandler(async(req, res) => {
-  const {assignmentId} = req.params
+  const {assignmentId, courseId} = req.params
   const userId = req.user.id
   const page = Number(req.query.page) || 1
   const limit = Number(req.query.limit) || 10
 
-  const result = await getOfficialAssignmentScore(userId, assignmentId, page, limit)
+  const result = await getAllStudentScore(userId, assignmentId, courseId, page, limit)
   return successResponse(res, {
     statusCode: 200,
     message: "Get all student score successfully",

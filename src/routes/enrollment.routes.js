@@ -7,15 +7,13 @@ import {
     approveEnrollmentRequestController,
     getStudentListController
 } from '../controllers/enrollment.controller.js'
-import { Authentication } from '../middlewares/auth.middleware.js'
 import { 
     registerCourseSchema, 
     getEnrollmentRequestsSchema, 
     approveEnrollmentRequestSchema, 
     getStudentListSchema 
 } from '../validators/enrollment.js'
-
-router.use(Authentication)
+import { can } from '../middlewares/authorization.middleware.js'
 
 router.post(
     "/",
@@ -25,18 +23,27 @@ router.post(
 
 router.get(
     "/",
+    can("CAN_VIEW_REQUESTS"),
+    validatorMiddleware(getEnrollmentRequestsSchema, "query"),
+    getEnrollmentRequestsController
+)
+
+router.get( // người dùng lấy các requests của chính mình
+    "/me/enrollment-requests",
     validatorMiddleware(getEnrollmentRequestsSchema, "query"),
     getEnrollmentRequestsController
 )
 
 router.patch(
     "/:enrollmentId/approve",
+    can("CAN_APPROVE_ENROLLMENT"),
     validatorMiddleware(approveEnrollmentRequestSchema, "params"),
     approveEnrollmentRequestController
 )
 
 router.get(
     "/students",
+    can("CAN_GET_STUDENT_LIST"),
     validatorMiddleware(getStudentListSchema, "query"),
     getStudentListController
 )

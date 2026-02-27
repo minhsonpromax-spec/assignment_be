@@ -4,8 +4,11 @@ import { AppError } from "../exceptions/app-error.js"
 import prisma from "../database/index.js"
 import jwt from "jsonwebtoken"
 import { transporter } from "../utils/mailer.js"
+import createLogger from "../utils/createLogger.js"
 
-export const signUp = async (userInput) => {
+export const signUp = async (userInput, context) => {
+  const logger = context ? createLogger(context) : null
+  
     if(!userInput)
         throw new AppError("Please enter all the information", 400)
     const email = userInput.email?.toLowerCase().trim()  
@@ -43,11 +46,19 @@ export const signUp = async (userInput) => {
 
     return createdUser
   })
+
+   if (logger) {
+    logger.info("USER_UPGRADED", {
+      targetType: "User",
+      targetId: createdUser.id,
+    }).catch(() => {})
+  }
+
   const accessToken = generateAccessToken({
-        userId: newUser.id,
-        email: newUser.email
+        userId: createdUser.id,
+        email: createdUser.email
   })
-  const {password: _, ...safeUser} = newUser
+  const {password: _, ...safeUser} = createdUser
   return {safeUser, accessToken}
 }
 
@@ -55,7 +66,7 @@ export const logIn = async (userInput) => {
   if(!userInput)
     throw new AppError("Please enter all the information", 400)
   const {email, password} = userInput
-  const user = await prisma.users.findUnique({email})
+  const user = await prisma.users.findUnique({where: { email }})
 
   if(!user)
     throw new AppError("User not found", 404)
@@ -75,7 +86,9 @@ export const logIn = async (userInput) => {
 }
 
 
-export const requestPasswordReset = async (email) => {
+export const requestPasswordReset = async (email, context) => {
+  const logger = context ? createLogger(context) : null
+
   if(!email)
     throw new AppError ("Email must be provided", 400)
   const email = email.toLowerCase().trim()  
@@ -106,11 +119,20 @@ export const requestPasswordReset = async (email) => {
            Reset Password</a>` // điền link của web vào đây
   })
 
+    if (logger) {
+      logger.info("PASSWORD_RESET_REQUESTED", {
+        targetType: "User",
+        targetId: user.id,
+      }).catch(() => {})
+    }
+
   return { message: "RESET_EMAIL_SENT" }
 }
 
 
-export const resetPassword = async (token, newPassword) => {
+export const resetPassword = async (token, newPassword, context) => {
+  const logger = context ? createLogger(context) : null
+
   if(!token || newPassword)
     throw new AppError ("Token or new password must be provided", 400)
   
@@ -147,6 +169,13 @@ export const resetPassword = async (token, newPassword) => {
       data: { usedAt: new Date() }
     })
   ])
+
+  if (logger) {
+    logger.info("PASSWORD_RESET_COMPLETED", {
+      targetType: "User",
+      targetId: resetRecord.userId,
+    }).catch(() => {})
+  }
 
   return { message: "PASSWORD_UPDATED" }
 }

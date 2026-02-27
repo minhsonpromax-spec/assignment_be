@@ -45,6 +45,12 @@ enum ActorType {
   COURSE
 }
 
+enum logLevel {
+  INFO
+  WARN
+  ERROR
+}
+
 // Models 
 
 model Users {
@@ -112,7 +118,8 @@ model Permissions {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-// permission: CAN_VIEW_REQUESTS, CAN_APPROVE_ENROLLMENT, CAN_GET_STUDENT_LIST, CAN_MARK_SUBMISSION
+// permission: CAN_VIEW_REQUESTS, CAN_APPROVE_ENROLLMENT, CAN_GET_STUDENT_LIST, CAN_MARK_SUBMISSION,
+// CAN_GET_STUDENT_SCORE, CAN_ACCESS_COURSE_CONTENT
 
 model RolePermission {
   id           String     @id @default(uuid())
@@ -237,7 +244,7 @@ model Assignment {
   lesson       Lesson    @relation(fields: [lessonId], references: [id])
   lessonId     String
   fileId       String?
-  title        Stringf
+  title        String
   description  String?
   maxScore     Int?
   allowLate    Boolean   @default(true)
@@ -326,6 +333,7 @@ model LOG {
   actorId    String
   actorType  ActorType
   action     String
+  level      logLevel @default(INFO)
   targetType String?
   targetId   String?
   metadata   Json?

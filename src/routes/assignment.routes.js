@@ -13,6 +13,7 @@ import {
   getAllStudentScoreSchema,
 } from "../validators/assignment.js"
 import {Authentication} from "../middlewares/auth.middleware.js"
+import { can } from "../middlewares/authorization.middleware.js"
 
 const router = express.Router()
 
@@ -27,6 +28,7 @@ router.get(
 
 router.get(
   "/assignments/:assignmentId/score",
+  can('CAN_ACCESS_COURSE_CONTENT'),
   validatorMiddleware(getOfficialAssignmentScoreSchema, "params"),
   getOfficialAssignmentScoreController
 )
@@ -34,6 +36,7 @@ router.get(
 
 router.get(
   "/assignments/:assignmentId/students/score",
+  can("CAN_GET_STUDENT_SCORE"),
   validatorMiddleware(getAllStudentScoreSchema, "params"),
   validatorMiddleware(getAllStudentScoreSchema, "query"),
   getAllStudentScoreController

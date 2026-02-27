@@ -1,6 +1,5 @@
 import { AppError } from "../exceptions/app-error.js"
 import prisma from "../database/index.js"
-import { resolveCourseAccess } from "../utils/permission.js"
 import { paginate } from "../utils/pagination.js"
 
 export const getAllAssignmentDid = async (userId, page = 1, limit = 10) => {
@@ -29,16 +28,22 @@ const parseAssignmentDid = (submissions) => {
   }))
 }
 
+//Tại sao cần đưa courseId vào Service dù đã có userId? 
+// Để đảm bảo User không thể lấy điểm của một bài tập thuộc về 
+// một Khóa học mà họ chưa đăng ký hoặc không có quyền xem (vd học sinh đã bị ban khỏi khóa học)
 
-export const getOfficialAssignmentScore = async (assignmentId, userId) => {
-  if(!userId || !assignmentId)
-    throw new AppError ("UserId or assignmentId must be provided", 400)
+export const getOfficialAssignmentScore = async (assignmentId, courseId, userId) => {
+  if(!userId || !assignmentId || !courseId)
+    throw new AppError ("UserId, assignmentId or courseId must be provided", 400)
 
   const submission = await prisma.submission.findFirst({
     where: {
       assignmentId,
       userId,
-      status: "GRADED"
+      status: "GRADED",
+      assignment: {
+        courseId: courseId // đảm bảo bài tập này thuộc về khóa học mà user đang yêu cầu
+      }
     },
     orderBy: {
       finalScore: "desc"
@@ -59,35 +64,9 @@ export const createAssignment = async (userId, ) => {
 
 }
 
-export const getAllStudentScore = async (userId, assignmentId, page = 1, limit = 10) => {
-  if(!userId || !assignmentId)
-    throw new AppError ("UserId or assignmentId must be provided", 400)
-
-  const assignment = await prisma.assignment.findUnique({
-    where: {id: assignmentId},
-    select: {
-      lesson: {
-        select: {
-          model: {
-            select: {
-              courseId: true
-            }
-          }
-        }
-      }
-    }
-  })
-
-  const courseId = assignment?.lesson?.model?.courseId
-
-  if(!courseId)
-    throw new AppError("Course id not found", 404)
-
-  const access = await resolveCourseAccess(userId, "CAN_GET_STUDENT_SCORE", courseId)
-
-  if (access.type === "NONE") {
-    throw new AppError("Forbidden", 403)
-  }
+export const getAllStudentScore = async (assignmentId, courseId, page = 1, limit = 10) => {
+  if( !assignmentId || !courseId)
+    throw new AppError ("UserId, assignmentId or courseId must be provided", 400)
 
   // định nghĩa cấu trúc query để đưa vào hàm phân trang
   const queryArgs = {

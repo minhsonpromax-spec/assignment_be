@@ -4,8 +4,9 @@ import { registerCourse, getEnrollmentRequests, approveEnrollmentRequest } from 
 
 export const registerCourseController = asyncHandler(async (req, res) => {
     const userId = req.user.id
-    const {courseId} = req.body
-    const result = await registerCourse(userId, courseId)
+    const {courseId} = req.params
+    const context = req.logContext
+    const result = await registerCourse(userId, courseId, context)
     return successResponse(res, {
         statusCode: 201,
         message: "Register course successfully",
@@ -15,9 +16,17 @@ export const registerCourseController = asyncHandler(async (req, res) => {
 
 export const getEnrollmentRequestsController = asyncHandler(async (req, res) => {
     const userId = req.user.id
+    const {courseId} = req.params
     const page = Number(req.query.page) || 1
     const limit = Number(req.query.limit) || 10
-    const result = await getEnrollmentRequests(userId, page, limit)
+    let filter = {}
+
+    if (courseId) {
+        filter = { courseId: courseId, status: "PENDING" }
+    } else {
+        filter = { userId: userId }
+    }
+    const result = await getEnrollmentRequests(filter, page, limit)
     return successResponse(res, {
         statusCode: 200,
         message: "Get enrollment requests successfully",
@@ -29,7 +38,8 @@ export const getEnrollmentRequestsController = asyncHandler(async (req, res) => 
 export const approveEnrollmentRequestController = asyncHandler(async (req, res) => {
     const userId = req.user.id
     const {enrollmentId} = req.params
-    const result = await approveEnrollmentRequest(userId, enrollmentId)
+    const context = req.logContext
+    const result = await approveEnrollmentRequest(userId, enrollmentId, context)
     return successResponse(res, {
         statusCode: 201,
         message: "Approve enrollment request successfully",
@@ -39,7 +49,7 @@ export const approveEnrollmentRequestController = asyncHandler(async (req, res) 
 
 export const getStudentListController = asyncHandler(async (req, res) => {
     const userId = req.user.id
-    const {courseId} = req.query
+    const {courseId} = req.params
     const page = Number(req.query.page) || 1
     const limit = Number(req.query.limit) || 10
     const result = await getStudentList(userId, courseId, page, limit)

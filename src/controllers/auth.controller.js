@@ -3,8 +3,9 @@ import { successResponse } from "../utils/response.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 
 export const signUpController = asyncHandler(async (req, res) => {
-    const result = await signUp(req.body)
-
+    const context = req.logContext
+    const result = await signUp(req.body, context)
+    
     return successResponse(res, {
         statusCode: 201,
         message: "Signup successful",
@@ -23,7 +24,8 @@ export const logInController = asyncHandler(async (req, res) => {
 
 export const requestPasswordResetController = asyncHandler(async (req, res) => {
     const {email} = req.body
-    const message = await requestPasswordReset(email)
+    const context = req.logContext
+    const message = await requestPasswordReset(email, context)
     return successResponse(res, {
         statusCode: 202,
         message: message
@@ -32,7 +34,8 @@ export const requestPasswordResetController = asyncHandler(async (req, res) => {
 
 export const resetPasswordController = asyncHandler(async (req, res) => {
     const {token, newPassword} = req.body
-    const message = await resetPassword(token, newPassword)
+    const context = req.logContext
+    const message = await resetPassword(token, newPassword, context)
     return successResponse(res, {
         statusCode: 200,
         message: message
